@@ -36,7 +36,7 @@ uv run mcp-karta-view
       "args": [
         "--refresh",
         "--from",
-        "git+ssh://git@github.com/kartaview/mcp-karta-view/mcp-karta-view.git",
+        "git+https://github.com/kartaview/mcp-karta-view",
         "mcp-karta-view"
       ]
     }
