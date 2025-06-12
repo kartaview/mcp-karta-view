@@ -1,0 +1,43 @@
+target-version = "py311"
+
+[project]
+name = "mcp-karta-view"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11.9"
+dependencies = [
+    "mcp[cli]>=1.2.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_karta_view"]
+
+[project.scripts]
+mcp-karta-view = "mcp_karta_view:main"
+
+[tool.pyright]
+include = ["src", "tests"]
+venvPath = "."
+venv = ".venv"
+
+[tool.ruff]
+src = ["src", "tests"] 
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = []
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.393",
+    "pytest>=8.3.4",
+    "ruff>=0.9.5",
+]
+
