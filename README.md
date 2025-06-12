@@ -31,7 +31,7 @@ uv run mcp-karta-view
 {
   "mcpServers": {
     ...
-    "geo tools": {
+    "kartaview": {
       "command": "uvx",
       "args": [
         "--refresh",
