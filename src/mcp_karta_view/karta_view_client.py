@@ -1,14 +1,13 @@
 import json
-
 import httpx
-
-from .config import KARTAVIEW_PUBLIC_URL
-from .models import PhotosResponse
+from .config import KARTAVIEW_PUBLIC_URL, KARTAVIEW_PUBLIC_GW_URL
+from .models import PhotosResponse, ObjectSearchResponse
 
 
 class KartaViewClient:
-    def __init__(self, base_url: str = KARTAVIEW_PUBLIC_URL, token: str = ""):
+    def __init__(self, base_url: str = KARTAVIEW_PUBLIC_URL, base_gw_url: str = KARTAVIEW_PUBLIC_GW_URL, token: str = ""):
         self.base_url = base_url
+        self.base_gw_url = base_gw_url
         self.client = httpx.Client(headers={
             "Authorization": token
         })
@@ -23,57 +22,15 @@ class KartaViewClient:
         except ValueError:
             response.raise_for_status()
 
-    def generate_zoom_level(self, radius: int) -> int:
-        """
-        Calculate appropriate zoom level based on radius in km.
-        
-        Uses the formula: zoom = log2(earth_circumference_km / (radius_km * map_width_pixels)) - 1
-        
-        For web mapping systems, zoom levels typically range from 0 (world view) to 20+ (building level)
-        Higher zoom = more zoomed in (smaller area)
-        Lower zoom = more zoomed out (larger area)
-        
-        Args:
-            radius: Search radius in kilometers
-            
-        Returns:
-            int: Appropriate zoom level (0-20)
-        """
-        import math
-
-        # Earth's circumference at equator in km
-        earth_circumference_km = 40075.0
-        
-        # Typical map tile size (256px is standard)
-        tile_size_pixels = 256
-        
-        # Calculate zoom level using standard web mercator formula
-        # zoom = log2(earth_circumference / (radius * 2 * tile_size / map_width))
-        # Simplified: we want the radius to fit comfortably in view
-        
-        # For a good view, we want the radius to be about 1/4 of the map width
-        # So effective_radius = radius * 4
-        effective_radius = radius * 4
-        
-        if effective_radius <= 0:
-            return 16  # Default zoom for invalid radius
-        
-        # Calculate zoom level
-        zoom = math.log2(earth_circumference_km / effective_radius)
-        
-        # Clamp to reasonable bounds (0-20)
-        zoom = max(0, min(20, int(zoom)))
-        
-        return zoom
-
-    def getNearbyPhotos(self, lat: float, lng: float, radius: int = 1000) -> PhotosResponse:
+    def getNearbyPhotos(self, lat: float, lng: float, radius: int = 10) -> PhotosResponse:
         params = {
             "lat": lat,
             "lng": lng,
-            "zoomLevel": self.generate_zoom_level(radius),
+            "zoomLevel": 16,
             "join": "sequence",
             "orderBy": "id",
-            "orderDirection": "desc"
+            "orderDirection": "desc",
+            "radius": radius
         }
 
         '''
@@ -86,3 +43,73 @@ class KartaViewClient:
             return PhotosResponse(**response.json())
         except Exception as e:
             return f"getNearbyPhotos exception: {e}"
+
+    def generate_bbox_list(self, lat: float, lng: float, radius: int) -> list[str]:
+        """
+        Generate bounding box coordinates for a given center point and radius.
+        
+        Args:
+            lat: Latitude in degrees
+            lng: Longitude in degrees  
+            radius: Radius in kilometers
+            
+        Returns:
+            list[str]: List containing BBOX string for the area
+        """
+        import math
+
+        # More accurate conversion accounting for latitude
+        # 1 degree latitude ≈ 111 km everywhere
+        # 1 degree longitude ≈ 111 km * cos(latitude) at given latitude
+        
+        km_per_degree_lat = 111.0
+        km_per_degree_lng = 111.0 * math.cos(math.radians(lat))
+        
+        # Convert radius from km to degrees
+        delta_lat = radius / km_per_degree_lat
+        delta_lng = radius / km_per_degree_lng
+        
+        # Calculate bounding box coordinates
+        min_lng = lng - delta_lng
+        min_lat = lat - delta_lat
+        max_lng = lng + delta_lng
+        max_lat = lat + delta_lat
+        
+        # this bbox format BBOX+(103.55978395139272%2C+104.08061604861354%2C+1.5275300511029144%2C+1.175057161618696)
+        return [f"BBOX+({min_lng},{max_lng},{max_lat},{min_lat})".replace(",", "%2C")]
+
+    def objectSearch(self, prompt: str, lat: float, lng: float, limit: int = 10, radius: int = 0, token: str = "") -> ObjectSearchResponse:
+        params = {
+            "prompt": prompt,
+            "limit": limit,
+            "point.lat": lat,
+            "point.long": lng,
+            "engine_mode": 1,
+            "model_type": 1,
+            "brief_response": True
+        }
+
+        if token == "":
+            return ObjectSearchResponse(
+                photos=[],
+                error="KartaView token is required"
+            )
+
+        if radius > 0:
+            params["bbox_list"] = self.generate_bbox_list(lat, lng, radius)
+
+        '''
+        API:curl --location --globoff 'https://karta-gateway.geo.azure.myteksi.net/view/service/kartaview_service/v1/photos:search?prompt=red+car&limit=500&point.lat=1.3513&point.long=103.8202&engine_mode=1&model_type=1&brief_response=true&bbox_list[]=BBOX+(103.55978395139272%2C+104.08061604861354%2C+1.5275300511029144%2C+1.175057161618696)' \
+            --header 'x-karta-token: xxxxxxxxxx'
+        '''
+
+        try:
+            url = f"{self.base_gw_url}/view/service/kartaview_service/v1/photos:search"
+            headers = {
+                "x-karta-token": token
+            }
+            response = self.client.get(url, params=params, headers=headers)
+            self._handle_error_response(response)
+            return ObjectSearchResponse(**response.json())
+        except Exception as e:
+            return f"objectSearch exception: {e}"
