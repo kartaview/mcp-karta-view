@@ -22,7 +22,7 @@ class KartaViewClient:
         except ValueError:
             response.raise_for_status()
 
-    def getNearbyPhotos(self, lat: float, lng: float, radius: int = 10) -> PhotosResponse:
+    def getNearbyPhotos(self, lat: float, lng: float, radius: int = 10, limit: int = 10) -> PhotosResponse:
         params = {
             "lat": lat,
             "lng": lng,
@@ -30,7 +30,8 @@ class KartaViewClient:
             "join": "sequence",
             "orderBy": "id",
             "orderDirection": "desc",
-            "radius": radius
+            "radius": radius,
+            "limit": limit
         }
 
         '''
