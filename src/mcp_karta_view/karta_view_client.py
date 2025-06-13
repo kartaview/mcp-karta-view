@@ -76,7 +76,7 @@ class KartaViewClient:
         max_lat = lat + delta_lat
         
         # this bbox format BBOX+(103.55978395139272%2C+104.08061604861354%2C+1.5275300511029144%2C+1.175057161618696)
-        return [f"BBOX+({min_lng},{max_lng},{max_lat},{min_lat})".replace(",", "%2C")]
+        return [f"BBOX({min_lng},{max_lng},{max_lat},{min_lat})"]
 
     def objectSearch(self, prompt: str, lat: float, lng: float, limit: int = 10, radius: int = 0, token: str = "") -> ObjectSearchResponse:
         params = {
